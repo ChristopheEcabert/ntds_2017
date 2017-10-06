@@ -1,3 +1,9 @@
+*~
+.DS_Store
+
+__pycache__/
+.ipynb_checkpoints/
+
 # Latex
 practical_info/ntds_labs.pdf
 *.aux
@@ -17,3 +23,5 @@ practical_info/ntds_labs.pdf
 *.nav
 *.run.xml
 *.snm
+
+credentials.ini
