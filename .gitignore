@@ -28,3 +28,6 @@ credentials.ini
 
 # PyCharm workspace
 *.idea
+
+# Data folder
+data/
