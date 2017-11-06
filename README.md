@@ -19,8 +19,8 @@ Below is the material you'll find in that repository:
 1. [Practical informations][practical_info]
 1. [Installation instructions](#installation)
 1. [Introduction][d01]: conda & Anaconda, Python, Jupyter, git, scientific Python
-1. Network properties: [twitter demo][d02], numpy & matplotlib demo, [assignment][a01], solution
-1. Network models: demo, assignment, solution
+1. Network properties: [twitter demo][d02], [numpy demo][d03], [assignment][a01], solution
+1. Network models: [networkx demo][d04], [matplotlib demo][d05], [assignment][a02], solution
 1. Spectral graph theory: demo, assignment, solution
 1. Graph signal processing: demo, assignment, solution
 1. Machine learning: demo, assignment, solution
@@ -33,8 +33,12 @@ themselves.
 
 [d01]: https://nbviewer.jupyter.org/github/mdeff/ntds_2017/blob/outputs/demos/01_introduction.ipynb
 [d02]: https://nbviewer.jupyter.org/github/mdeff/ntds_2017/blob/outputs/demos/02_data_acquisition_twitter.ipynb
+[d03]: https://nbviewer.jupyter.org/github/mdeff/ntds_2017/blob/outputs/demos/03_numpy.ipynb
+[d04]: https://nbviewer.jupyter.org/github/mdeff/ntds_2017/blob/outputs/demos/04_networkx.ipynb
+[d05]: https://nbviewer.jupyter.org/github/mdeff/ntds_2017/blob/outputs/demos/05_matplotlib.ipynb
 
 [a01]: https://nbviewer.jupyter.org/github/mdeff/ntds_2017/blob/outputs/assignments/01_network_properties.ipynb
+[a02]: https://nbviewer.jupyter.org/github/mdeff/ntds_2017/blob/outputs/assignments/02_network_models.ipynb
 
 ## Installation
 
@@ -53,8 +57,9 @@ install it.
 1. Install git with `conda install git`.
 1. Download this repository by executing
    `git clone https://github.com/mdeff/ntds_2017`.
-1. Open the Anaconda Navigator (e.g. from the Windows Start menu).
-1. From there you can start e.g. Jupyter or Spyder.
+1. Start Jupyter with `jupyter notebook`. The command should open a new tab in
+   your web browser.
+1. Edit and run the notebooks from your browser.
 
 [git]: https://git-scm.com
 [python]: https://www.python.org
