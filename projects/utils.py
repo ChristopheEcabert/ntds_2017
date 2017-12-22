@@ -86,3 +86,25 @@ def load_meshes(filename, exps=None):
     if len(meshes) == 0:
         print('Error, can not load meshes from file: %s' % filename)
     return meshes
+
+def gather_neighbour(tri):
+    """
+    Generate the list of neighboring vertex indexes from a triangle list
+    :param tri: Triangulation matrix
+    :return:    List of neighbour (list(set))
+    """
+    #  number of element polygon
+    spoly = tri.shape[1]
+    assert (spoly == 3)
+    # Vertex max
+    N = tri.max()
+    # Define neighbor
+    neighbour = [set() for _ in range(N + 1)]
+    for l in tri:
+        for k in range(spoly):
+            v0 = l[k]
+            e1 = l[(k + 1) % spoly]
+            e2 = l[(k + 2) % spoly]
+            neighbour[v0].add(e1)
+            neighbour[v0].add(e2)
+    return neighbour
