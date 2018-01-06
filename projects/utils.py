@@ -68,7 +68,7 @@ def load_meshes(filename, exps=None):
     """
     meshes = []
     with open(filename, 'rb') as f:
-        # Read header
+        # Read header
         nexp = struct.unpack('@i', f.read(4))[0]
         nvert = struct.unpack('@i', f.read(4))[0]
         nvert *= 3 # x,y,z components
@@ -86,6 +86,21 @@ def load_meshes(filename, exps=None):
     if len(meshes) == 0:
         print('Error, can not load meshes from file: %s' % filename)
     return meshes
+
+
+def save_obj(vertex, tri, filename):
+    """
+    Dump a mesh into an obj file
+    :param vertex:      Matrix with vertex
+    :param tri:         Matrix with triangle
+    :param filename:    Path where to save the *.obj
+    """
+    with open(filename, 'w') as f:
+        for v in vertex:
+            f.write('v %f %f %f\n' % (v[0], v[1], v[2]))
+        for t in tri:
+            f.write('f %d %d %d\n' % (t[0] + 1, t[1] + 1, t[2] + 1))
+
 
 def gather_neighbour(tri):
     """
