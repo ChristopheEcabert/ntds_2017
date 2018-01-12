@@ -1,6 +1,7 @@
+import struct
+import os
 import re
 import shutil
-import struct
 import numpy as np
 
 
@@ -122,4 +123,4 @@ def gather_neighbour(tri):
             e2 = l[(k + 2) % spoly]
             neighbour[v0].add(e1)
             neighbour[v0].add(e2)
-    return neighbour
+    return list(map(list, neighbour))
