@@ -121,6 +121,55 @@ def gather_neighbour(tri):
             v0 = l[k]
             e1 = l[(k + 1) % spoly]
             e2 = l[(k + 2) % spoly]
-            neighbour[v0].add(e1)
-            neighbour[v0].add(e2)
+            neighbour[v0].add(int(e1))
+            neighbour[v0].add(int(e2))
     return list(map(list, neighbour))
+
+
+class MeshGenerator:
+    """
+    Utility class to generate toy examples
+    """
+    def make_plane(self, nx, ny, dx=1.0, dy=1.0):
+        """
+        Generate a simple plane aligned with the XY plane
+
+        :param nx:  Number of step in the X direction
+        :param ny:  Number of stop in the Y direction
+        :param dx:  Increment size in X
+        :param dy:  Increment size in Y
+        :return:    Surface, Triangulation
+        """
+        nvertex = nx * ny
+        pts = np.zeros((nvertex, 3), dtype=np.float32)
+        tri = []
+        for ky in range(0, ny):
+            for kx in range(0, nx):
+                # Define position
+                x = kx * dx
+                y = ky * dy
+                z = 0.0
+                idx = kx + nx * ky
+                pts[idx, :] = [x, y, z]
+                # Define triangle
+                if ky > 0 and kx > 0:
+                    v2 = idx
+                    v1 = idx - 1
+                    v3 = idx - nx
+                    v0 = v3 -1
+                    tri.append([v0, v1, v3])
+                    tri.append([v1, v2, v3])
+        return pts, np.asarray(tri, dtype=np.int32).reshape((len(tri), 3))
+
+    def transform(self, points, func):
+        """
+        Apply a given transform to a set of points [Nx3]
+
+        :param points:  Point set on which to apply the transformation
+        :param func:    Deformation to apply on the points
+        :return:
+        """
+        pts = np.zeros(points.shape, points.dtype)
+        for i, r in enumerate(points):
+            pts[i, :] = func(r)
+        return pts

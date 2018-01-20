@@ -1,56 +1,17 @@
 from utils import *
 from mesh import *
+from deformation import *
 import numpy as np
-import scipy.linalg
+from scipy import sparse
+import scipy.sparse.linalg
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-# How to load a mesh into the notebook
-# tri = utils.load_triangulation('../data/FWTri/fw_triangulation.tri')
-# mesh = utils.load_meshes('../data/FWMesh/000_shape.bs')
-# neighbour = utils.gather_neighbour(tri=tri)
-# n_neighbour = list(map(len, neighbour))
-# plt.figure(1)
-# plt.hist(n_neighbour)
-# plt.show(block=False)
-
-
-# Generate sample
-class MeshGenerator:
-
-    def make_plane(self, nx, ny, dx=1.0, dy=1.0):
-        nvertex = nx * ny
-        pts = np.zeros((nvertex, 3), dtype=np.float32)
-        tri = []
-        for ky in range(0, ny):
-            for kx in range(0, nx):
-                # Define position
-                x = kx * dx
-                y = ky * dy
-                z = 0.0
-                idx = kx + nx * ky
-                pts[idx, :] = [x, y, z]
-                # Define triangle
-                if ky > 0 and kx > 0:
-                    v2 = idx
-                    v1 = idx - 1
-                    v3 = idx - nx
-                    v0 = v3 -1
-                    tri.append([v0, v1, v3])
-                    tri.append([v1, v2, v3])
-        return pts, np.asarray(tri, dtype=np.int32).reshape((len(tri), 3))
-
-    def transform(self, points, func):
-        pts = np.zeros(points.shape, points.dtype)
-        for i, r in enumerate(points):
-            pts[i, :] = func(r)
-        return pts
-
 
 def modifier(point):
-    x = point[0] + 5.0
-    y = point[1] + 7.0
-    z = 0.1 * (x ** 2.0) + 3.0
+    x = point[0] + 4
+    y = point[1] + 4
+    z = 0.5 * (x ** 2.0) + 3.0
     return [x, y, z]
 
 
@@ -66,13 +27,14 @@ def modifier_debug(point):
 
 # Generate simple surface for test
 gen = MeshGenerator()
-surf, tri = gen.make_plane(nx=5, ny=5, dx=1, dy=1)
+surf, tri = gen.make_plane(nx=20, ny=5, dx=1, dy=1)
+surf[:, 0] -= 9.5
+surf[:, 1] -= 2.5
+surf[:, 2] += 1.0
 surf_t = gen.transform(surf, modifier)
 N = surf.shape[0]
 
-# Get neighbouring vertex indexes
-neighbour = gather_neighbour(tri)
-
+# Display the problem
 fig = plt.figure(1)
 ax = fig.add_subplot(111, projection='3d')
 ax.plot_trisurf(surf[:,0], surf[:,1], surf[:,2], triangles=tri)
@@ -82,123 +44,92 @@ plt.show(block=False)
 # --------------------------------------------------------
 # Generate Laplacian
 # --------------------------------------------------------
-
 mesh_src = Mesh(surf, tri)
-#Deg, Adj, Lap = mesh_src.compute_laplacian('combinatorial')
-Deg, Adj, Lap = mesh_src.compute_laplacian('normalized')
+mesh_tgt = Mesh(surf_t, tri)
+#Deg, Adj, Lap = mesh_src.compute_laplacian('normalized')
+Deg, Adj, Lap = mesh_src.compute_laplacian('combinatorial')
 
-# Define node's degree
-#Deg = np.asarray(list(map(len, neighbour)), dtype=np.float32).reshape((len(neighbour), 1))
-# Create adjacency matrix
-#Adj = np.zeros((N, N), dtype=np.float32)
-#for idx, n_list in enumerate(neighbour):
-#    for n in n_list:
-#        e0 = idx
-#        e1 = n
-#        Adj[e0, e1] = 1.0
-#        Adj[e1, e0] = 1.0
+L = np.array(Lap.todense())
+
 
 # Sanity check
-assert np.count_nonzero(Adj - Adj.transpose()) == 0
-assert np.count_nonzero(Lap - Lap.T) == 0
+assert (Adj - Adj.transpose()).count_nonzero() == 0
+assert (Lap - Lap.transpose()).count_nonzero() == 0 #.count_nonzero() == 0
 
-fig, ax = plt.subplots(1,2)
-ax[0].spy(Adj)
-ax[1].spy(Lap)
+
+# --------------------------------------------------------
+# Laplacian mesh deformation
+# --------------------------------------------------------
+# Define anchor's indexes
+
+"""
+minx = min(surf[:, 0])
+maxx = max(surf[:, 0])
+ancIdx = []
+ancIdx.extend(np.where(surf[:, 0] == minx)[0].tolist())
+ancIdx.extend(np.where(surf[:, 0] == maxx)[0].tolist())
+ancIdx.extend(np.where(surf[:, 0] == -0.5)[0].tolist())
+ancIdx.extend(np.where(surf[:, 0] == 0.5)[0].tolist())
+ancIdx.extend(np.where(surf[:, 0] == -4.5)[0].tolist())
+ancIdx.extend(np.where(surf[:, 0] == 4.5)[0].tolist())
+# Anchors
+anchors = surf_t[ancIdx, :]
+print('There are %d anchors' % len(ancIdx))
+
+
+# Solve
+mesh = deform_mesh(mesh_src, anchors, ancIdx, 10.0)
+estm_tgt = mesh.vertex
+
+err = np.linalg.norm(estm_tgt - surf_t, axis=1)
+
+fig = plt.figure(20)
+ax = fig.add_subplot(111, projection='3d')
+ax.plot_trisurf(estm_tgt[:,0], estm_tgt[:,1], estm_tgt[:,2], triangles=tri)
+ax.plot_trisurf(surf_t[:,0], surf_t[:,1], surf_t[:,2], triangles=tri)
+#ax.view_init(elev=10, azim=-90)
+#plt.axis('equal')
+plt.show(block=False)
+
+fig = plt.figure(21)
+ax = fig.add_subplot(111, projection='3d')
+trisurf = ax.plot_trisurf(estm_tgt[:,0], estm_tgt[:,1], estm_tgt[:,2], triangles=tri)
+#ax.plot_trisurf(surf_t[:,0], surf_t[:,1], surf_t[:,2], triangles=tri)
+#ax.view_init(elev=10, azim=-90)
+#plt.axis('equal')
+plt.show(block=False)
+
+print(err[ancIdx])
+
+mesh_tgt.save('mesh_target.obj')
+mesh_src.save('mesh_deform.obj')
+
+"""
+
 
 # --------------------------------------------------------
 # Optimization
 # --------------------------------------------------------
-M = np.zeros((N, 1), dtype=np.float32)
-idx = surf[:, 0] == 0.0
-M[idx] = 1.0
-idx = surf[:, 0] == 4.0
-M[idx] = 1.0
-M = np.diagflat(M)
+minx = min(surf[:, 0])
+maxx = max(surf[:, 0])
+
+#idx = np.where(surf[:, 0] != 0.0)[0].tolist()
+idx = np.where(surf[:, 0] == minx)[0].tolist()
+idx.extend(np.where(surf[:, 0] == maxx)[0].tolist())
+idx.extend(np.where(surf[:, 0] == 0.5)[0].tolist())
+idx.extend(np.where(surf[:, 0] == -0.5)[0].tolist())
+K = len(idx)
+ridx = [k for k in range(K)]
+cidx = idx
+data = [1.0] * K
+M = sparse.coo_matrix((data, (ridx, cidx)), shape=(K, N), dtype=np.float32)
+
+
 
 
 def solve_anchor(source, target, sel, lap, alpha):
     """
-    Solve the system argmin | M ( src + t - tgt) |_F using Gauss-Newton solver
-
-    :param source:      Surface to deform
-    :param target:      Surface to reach
-    :param sel:         Selected anchor
-    :param lap:         Laplacian operator
-    :param alpha:       Regularizer
-    :return:            Estimated surface and parameters
-    """
-    # Parameters
-    src = source
-    tgt = target
-    p = np.zeros(src.shape, dtype=np.float32)
-    process = True
-    it = 0
-    max_it = 5
-
-    # Gauss-Newton
-    while process:
-        # Compute error f(x)
-        fx = sel @ (src + p - tgt)
-        # Compute Jacobian + Linear system
-        Jf = sel
-        A = Jf.T @ Jf
-        b = - Jf.T @ fx
-        # Use lstsq since A is singular
-        dp, _, _, _ = np.linalg.lstsq(A, b)
-        # Update
-        p += dp
-        # Converged ?
-        it += 1
-        process = True if it < max_it else False
-
-    # Reconstruct target
-    estm_tgt = (src + p)
-    return estm_tgt, p
-
-
-def solve_anchor_reg(source, target, sel, lap, alpha):
-    """
-    Solve the system argmin | M ( src + t - tgt) | + t'Lt using Gauss-Newton solver
-
-    :param source:      Surface to deform
-    :param target:      Surface to reach
-    :param sel:         Selected anchor
-    :param lap:         Laplacian operator
-    :param alpha:       Regularizer
-    :return:            Estimated surface and parameters
-    """
-    # Parameters
-    src = source
-    tgt = target
-    p = np.zeros(src.shape, dtype=np.float32)
-    process = True
-    it = 0
-    max_it = 3
-    # Gauss-Newton
-    while process:
-        # Compute error f(x)
-        F = (src + p - tgt)
-        Fx = sel @ F
-        # Compute Jacobians
-        Jf = sel
-        A = (Jf.T @ Jf) + alpha * lap
-        b = - ((Jf.T @ Fx) + alpha * (lap @ p))
-        # Solve
-        dp = np.linalg.solve(A, b)
-        # Update
-        p += dp
-        # Converged ?
-        it += 1
-        process = True if it < max_it else False
-
-    # Reconstruct target
-    estm_tgt = (src + p).reshape((-1, 3))
-    return estm_tgt, p
-
-def solve_anchor_reg_debug(source, target, sel, lap, alpha):
-    """
-    Solve the system argmin | M ( src + t - tgt) | + t'Lt using Gauss-Newton solver
+    Solve the system argmin | sel ( src + t - tgt) |
 
     :param source:      Surface to deform
     :param target:      Surface to reach
@@ -211,39 +142,60 @@ def solve_anchor_reg_debug(source, target, sel, lap, alpha):
     xs = source
     xt = target
     p = np.zeros(xs.shape, dtype=np.float32)
+    # Define linear system
+    ef = sel.dot(xs) - xt
+    A = sel.transpose().dot(sel)
+    b = -(sel.transpose().dot(ef))
     # Solve
-
-    # Compute error f(x)
-    ef = (xs - xt)
-    MtM = sel.T @ sel
-    # Compute Linear system
-
-    A = MtM + alpha * lap
-    b = - (MtM @ ef)
-    # Solve
-    p = np.linalg.solve(A, b)
-
+    for k in range(3):
+        p[:, k] = sparse.linalg.lsqr(A, b[:, k])[0]
     # Reconstruct target
-    estm_tgt = (xs + p)
+    estm_tgt = xs  + p
     return estm_tgt, p
 
 
+def solve_anchor_transform(source, target, sel, lap, alpha):
+    """
+    Solve the system argmin | sel ( src + t - tgt) | + t'Lt
+
+    :param model:       Deformation model
+    :param source:      Surface to deform
+    :param target:      Surface to reach
+    :param sel:         Selected anchor
+    :param lap:         Laplacian operator
+    :param alpha:       Regularizer
+    :return:            Estimated surface and parameters
+    """
+    # Parameters
+    xs = source
+    xt = target
+    p = np.zeros(xs.shape, dtype=np.float32)
+    # Define linear system to solve
+    ef = sel.dot(xs) - xt
+    A = sel.transpose().dot(sel) + alpha * lap
+    b = -(sel.transpose().dot(ef))
+    # Solve
+    for k in range(3):
+        p[:, k] = sparse.linalg.lsqr(A, b[:, k])[0]
+    # Estimation
+    estm_tgt = xs + p
+    # Done
+    return estm_tgt, p
+
+
+
 # Solve anchor
-estm_tgt, p = solve_anchor(surf, surf_t, M, Lap, 0.0)
-estm_tgt_reg, p = solve_anchor_reg_debug(surf, surf_t, M, Lap, 1.0)
+target_anchors = M.dot(surf_t)
+estm_tgt, p = solve_anchor(surf, target_anchors, M, Lap, 0.0)
+estm_tgt_reg, p = solve_anchor_transform(surf, target_anchors, M, Lap, 0.0000006) # cotan 0.0000006
 
 
-p_true = surf_t - surf
-print('GT smoothness (p_true)')
-print(p_true.T @ (Lap @ p_true))
-print('Estm smoothness (p)')
-print(p.T @ (Lap @ p))
 
 err = estm_tgt - surf_t
 err_reg = estm_tgt_reg - surf_t
 
-print('Error at anchor')
-print(M @ err_reg)
+#print('Error at anchor')
+#print(M @ err_reg)
 
 # Draw - Results
 
@@ -259,9 +211,18 @@ fig = plt.figure(11)
 ax = fig.add_subplot(111, projection='3d')
 ax.plot_trisurf(estm_tgt_reg[:,0], estm_tgt_reg[:,1], estm_tgt_reg[:,2], triangles=tri)
 ax.plot_trisurf(surf_t[:,0], surf_t[:,1], surf_t[:,2], triangles=tri)
-#ax.view_init(elev=0, azim=-90)
+ax.view_init(elev=10, azim=-90)
 #plt.axis('equal')
 plt.show(block=True)
+"""
+fig = plt.figure(12)
+ax = fig.add_subplot(111, projection='3d')
+ax.plot_trisurf(estm_tgt_transform_reg[:,0], estm_tgt_transform_reg[:,1], estm_tgt_transform_reg[:,2], triangles=tri)
+ax.plot_trisurf(surf_t[:,0], surf_t[:,1], surf_t[:,2], triangles=tri)
+#ax.view_init(elev=10, azim=-90)
+#plt.axis('equal')
+plt.show(block=True)
+"""
 
 """
 color_estm = (21 / 255, 78 / 255, 108 / 255)
@@ -274,6 +235,15 @@ mlab.show()
 
 
 
+ptrue = surf_t - surf
+
+smoothness_true = ptrue.transpose() @ (Lap.dot(ptrue))
+smoothness_estm = p.transpose() @ (Lap.dot(p))
+
+print('Smoothness true')
+print(smoothness_true)
+print('Smoothness est')
+print(smoothness_estm)
 
 
 
