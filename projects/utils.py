@@ -72,7 +72,8 @@ def load_meshes(filename, exps=None):
         # Read header
         nexp = struct.unpack('@i', f.read(4))[0]
         nvert = struct.unpack('@i', f.read(4))[0]
-        nvert *= 3 # x,y,z components
+        #  x,y,z components
+        nvert *= 3
         npoly = struct.unpack('@i', f.read(4))[0]
         # Select expression
         idx = range(0, nexp) if exps is None else sorted(list(set(exps)))
@@ -102,6 +103,34 @@ def save_obj(vertex, tri, filename):
         for t in tri:
             f.write('f %d %d %d\n' % (t[0] + 1, t[1] + 1, t[2] + 1))
 
+def load_obj(filename):
+    """
+    Load mesh from an *.obj file
+
+    :param filename:    Path to obj file
+    :return:            Tuple with a vertex, tri
+    """
+    vertex = []
+    tri = []
+    with open(filename, 'r') as f:
+        for line in f:
+            # Vertex ?
+            if line[0:2] == 'v ':
+                p = line.strip().split(' ')
+                vertex.append(float(p[1]))
+                vertex.append(float(p[2]))
+                vertex.append(float(p[3]))
+            # Triangle ?
+            elif line[0:2] == 'f ':
+                p = line.strip().split(' ')
+                assert len(p) == 4
+                tri.append(int(p[1]) - 1)
+                tri.append(int(p[2]) - 1)
+                tri.append(int(p[3]) - 1)
+
+    return np.asarray(vertex, dtype=np.float32).reshape((-1, 3)), \
+           np.asarray(tri, dtype=np.int32).reshape((-1, 3))
+
 
 def gather_neighbour(tri):
     """
@@ -124,6 +153,20 @@ def gather_neighbour(tri):
             neighbour[v0].add(int(e1))
             neighbour[v0].add(int(e2))
     return list(map(list, neighbour))
+
+
+def load_anchor_point(filename):
+    """
+    Load selected anchors points from file
+
+    :param filename:    Path to anchor's file
+    :return:            List of anchor's index
+    """
+    idx = []
+    with open(filename, 'r') as f:
+        for line in f:
+            idx.append(int(line.strip()))
+    return idx
 
 
 class MeshGenerator:

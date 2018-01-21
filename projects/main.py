@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 
+
 def modifier(point):
     x = point[0] + 4
     y = point[1] + 4
@@ -127,66 +128,16 @@ M = sparse.coo_matrix((data, (ridx, cidx)), shape=(K, N), dtype=np.float32)
 
 
 
-def solve_anchor(source, target, sel, lap, alpha):
-    """
-    Solve the system argmin | sel ( src + t - tgt) |
-
-    :param source:      Surface to deform
-    :param target:      Surface to reach
-    :param sel:         Selected anchor
-    :param lap:         Laplacian operator
-    :param alpha:       Regularizer
-    :return:            Estimated surface and parameters
-    """
-    # Parameters
-    xs = source
-    xt = target
-    p = np.zeros(xs.shape, dtype=np.float32)
-    # Define linear system
-    ef = sel.dot(xs) - xt
-    A = sel.transpose().dot(sel)
-    b = -(sel.transpose().dot(ef))
-    # Solve
-    for k in range(3):
-        p[:, k] = sparse.linalg.lsqr(A, b[:, k])[0]
-    # Reconstruct target
-    estm_tgt = xs  + p
-    return estm_tgt, p
 
 
-def solve_anchor_transform(source, target, sel, lap, alpha):
-    """
-    Solve the system argmin | sel ( src + t - tgt) | + t'Lt
 
-    :param model:       Deformation model
-    :param source:      Surface to deform
-    :param target:      Surface to reach
-    :param sel:         Selected anchor
-    :param lap:         Laplacian operator
-    :param alpha:       Regularizer
-    :return:            Estimated surface and parameters
-    """
-    # Parameters
-    xs = source
-    xt = target
-    p = np.zeros(xs.shape, dtype=np.float32)
-    # Define linear system to solve
-    ef = sel.dot(xs) - xt
-    A = sel.transpose().dot(sel) + alpha * lap
-    b = -(sel.transpose().dot(ef))
-    # Solve
-    for k in range(3):
-        p[:, k] = sparse.linalg.lsqr(A, b[:, k])[0]
-    # Estimation
-    estm_tgt = xs + p
-    # Done
-    return estm_tgt, p
+
 
 
 
 # Solve anchor
 target_anchors = M.dot(surf_t)
-estm_tgt, p = solve_anchor(surf, target_anchors, M, Lap, 0.0)
+estm_tgt, p = deform_anchor(surf, target_anchors, M, Lap, 0.0)
 estm_tgt_reg, p = solve_anchor_transform(surf, target_anchors, M, Lap, 0.0000006) # cotan 0.0000006
 
 

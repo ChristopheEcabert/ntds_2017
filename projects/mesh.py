@@ -90,6 +90,18 @@ class Mesh(object):
         """
         utils.save_obj(self.vertex, self.tri, filename)
 
+    def load(self, filename):
+        """
+        Load mesh from an *.obj file
+
+        :param filename:    Path to obj file
+        """
+        self.vertex, self.tri = utils.load_obj(filename)
+        self.neighbour = None
+        self._eneighbour = dict()
+        self.edge = None
+        self._voronoi_area = self._compute_voronoi_area()
+
     def compute_laplacian(self, type):
         """
         Compute Laplacian operator for this mesh
@@ -294,36 +306,37 @@ class Mesh(object):
         :return:    Area
         """
         areas = []
-        N = self.vertex.shape[0]
-        for vidx in range(N):
-            # Get all triangles connected to this vertex
-            faces = set()
-            for neighbour, eidx in self._eneighbour[vidx]:
-                edge = self.edge[eidx]
-                if edge.f1 is not None:
-                    faces.add(edge.f1)
-                if edge.f2 is not None:
-                    faces.add(edge.f2)
-            # Compute area over all tri
-            area = 0.0
-            for f in faces:
-                # Query face
-                tri = self.tri[f,:]
-                v0 = tri[tri == vidx][0]
-                verts = np.where(tri != vidx)[0].tolist()
-                assert len(verts) == 2
-                v1 = tri[verts[0]]
-                v2 = tri[verts[1]]
-                # Compute Centroid + mid edges
-                centroid = np.mean(self.vertex[[v0, v1, v2], :], axis=0) - self.vertex[v0, :]
-                v1m = (self.vertex[v1, :] - self.vertex[v0, :]) / 2.0
-                v2m = (self.vertex[v2, :] - self.vertex[v0, :]) / 2.0
-                # Compute area
-                a = np.linalg.norm(np.cross(centroid, v1m)) / 2.0
-                a += np.linalg.norm(np.cross(centroid, v2m)) / 2.0
-                area += a
-            # add to the list
-            areas.append(area)
+        if self.vertex is not None:
+            N = self.vertex.shape[0]
+            for vidx in range(N):
+                # Get all triangles connected to this vertex
+                faces = set()
+                for neighbour, eidx in self._eneighbour[vidx]:
+                    edge = self.edge[eidx]
+                    if edge.f1 is not None:
+                        faces.add(edge.f1)
+                    if edge.f2 is not None:
+                        faces.add(edge.f2)
+                # Compute area over all tri
+                area = 0.0
+                for f in faces:
+                    # Query face
+                    tri = self.tri[f,:]
+                    v0 = tri[tri == vidx][0]
+                    verts = np.where(tri != vidx)[0].tolist()
+                    assert len(verts) == 2
+                    v1 = tri[verts[0]]
+                    v2 = tri[verts[1]]
+                    # Compute Centroid + mid edges
+                    centroid = np.mean(self.vertex[[v0, v1, v2], :], axis=0) - self.vertex[v0, :]
+                    v1m = (self.vertex[v1, :] - self.vertex[v0, :]) / 2.0
+                    v2m = (self.vertex[v2, :] - self.vertex[v0, :]) / 2.0
+                    # Compute area
+                    a = np.linalg.norm(np.cross(centroid, v1m)) / 2.0
+                    a += np.linalg.norm(np.cross(centroid, v2m)) / 2.0
+                    area += a
+                # add to the list
+                areas.append(area)
         return areas
 
     @property
@@ -387,7 +400,7 @@ class Mesh(object):
 
         :param trilist: Triangle list
         """
-        self.__neighbour = utils.gather_neighbour(self.tri)
+        self.__neighbour = utils.gather_neighbour(self.tri) if self.tri is not None else None
 
     @edge.setter
     def edge(self, edge):
@@ -396,4 +409,4 @@ class Mesh(object):
 
         :param edge: edge
         """
-        self.__edge = self._compute_edges(self.tri)
+        self.__edge = self._compute_edges(self.tri) if self.tri is not None else None

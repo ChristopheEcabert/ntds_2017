@@ -31,6 +31,61 @@ class Deformation(ABC):
         """
         pass
 
+def deform_anchor(source, target, sel, lap, alpha):
+    """
+    Solve the system argmin | sel ( src + d) - tgt |
+
+    :param source:      Surface to deform
+    :param target:      Surface to reach
+    :param sel:         Selected anchor
+    :param lap:         Laplacian operator
+    :param alpha:       Regularizer
+    :return:            Estimated surface and deformation field
+    """
+    # Parameters
+    xs = source
+    xt = target
+    d = np.zeros(xs.shape, dtype=np.float32)
+    # Define linear system
+    ef = sel.dot(xs) - xt
+    A = sel.transpose().dot(sel)
+    b = -(sel.transpose().dot(ef))
+    # Solve
+    for k in range(3):
+        d[:, k] = sparse.linalg.lsqr(A, b[:, k])[0]
+    # Reconstruct target
+    estm_tgt = xs + d
+    return estm_tgt, d
+
+
+def deform_regularized_anchor(source, target, sel, lap, alpha):
+    """
+    Solve the system argmin | sel ( src + d) - tgt | + d'Ld
+
+    :param model:       Deformation model
+    :param source:      Surface to deform
+    :param target:      Surface to reach
+    :param sel:         Selected anchor
+    :param lap:         Laplacian operator
+    :param alpha:       Regularizer
+    :return:            Estimated surface and deformation field
+    """
+    # Parameters
+    xs = source
+    xt = target
+    d = np.zeros(xs.shape, dtype=np.float32)
+    # Define linear system to solve
+    ef = sel.dot(xs) - xt
+    A = sel.transpose().dot(sel) + alpha * lap
+    b = -(sel.transpose().dot(ef))
+    # Solve
+    for k in range(3):
+        d[:, k] = sparse.linalg.lsqr(A, b[:, k])[0]
+    # Estimation
+    estm_tgt = xs + d
+    # Done
+    return estm_tgt, d
+
 
 def deform_mesh(mesh, anchors, idx, weight = 1.0):
     """
@@ -47,25 +102,23 @@ def deform_mesh(mesh, anchors, idx, weight = 1.0):
     K = anchors.shape[0]
 
     # Compute laplacian + augment it with anchor's index
-    Deg, Adj, Lap = mesh.compute_laplacian('cotan')
-    ridx = Lap.row.tolist()
-    cidx = Lap.col.tolist()
-    data = Lap.data.tolist()
+    _, _, lap = mesh.compute_laplacian('cotan')
+    ridx = lap.row.tolist()
+    cidx = lap.col.tolist()
+    data = lap.data.tolist()
     for k in range(K):
         ridx.append(N + k)
         cidx.append(idx[k])
         data.append(weight)
-    Lap = sparse.csr_matrix((data, (ridx, cidx)), shape=(N+K, N), dtype=Lap.dtype)
-
+    Lap = sparse.csr_matrix((data, (ridx, cidx)), shape=(N+K, N), dtype=lap.dtype)
     # Compute deltas + augment with anchors
     deltas = Lap.dot(mesh.vertex)
     for k in range(K):
         deltas[N + k, :] = anchors[k,:] * weight
-
     # Update each dimension
     for k in range(3):
-        mesh.vertex[:, k] = scipy.sparse.linalg.lsqr(Lap, deltas[:, k])[0]
-
+        mesh.vertex[:, k] = scipy.sparse.linalg.lsqr(lap, deltas[:, k])[0]
+    # Done
     return mesh
 
 """
