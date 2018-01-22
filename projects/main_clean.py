@@ -6,7 +6,7 @@ import os
 from scipy import sparse
 
 # data root folder
-data_folder = '/Users/Karhadras/switchdrive/EPFL/NTDS'
+data_folder = '../data'
 
 # Load source + target meshes
 tri = utils.load_triangulation(os.path.join(data_folder, 'FWTri/fw_triangulation.tri'))
@@ -19,7 +19,7 @@ mesh_xs = Mesh(meshes[0], tri)
 mesh_xt = Mesh(meshes[1], tri)
 N = meshes[0].shape[0]
 
-
+"""
 # -------------------------------------------------------------
 # Deformation fields
 # -------------------------------------------------------------
@@ -32,7 +32,7 @@ cidx = anchors
 data = [1.0] * K
 M = sparse.coo_matrix((data, (ridx, cidx)), shape=(K, N), dtype=np.float32)
 # 2) Comptue laplacian
-Lap = mesh_xs.compute_laplacian('cotan')
+_,_,Lap = mesh_xs.compute_laplacian('cotan')
 # 3) Compute target
 Xs = mesh_xs.vertex
 Xt = M.dot(mesh_xt.vertex)
@@ -58,6 +58,8 @@ print('Point wise error')
 print(err)
 print('Mean error')
 print(e)
+
+"""
 
 # -------------------------------------------------------------
 # Least-Square Mesh

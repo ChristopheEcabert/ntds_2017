@@ -110,9 +110,9 @@ def deform_mesh(mesh, anchors, idx, weight = 1.0):
         ridx.append(N + k)
         cidx.append(idx[k])
         data.append(weight)
-    Lap = sparse.csr_matrix((data, (ridx, cidx)), shape=(N+K, N), dtype=lap.dtype)
+    lap = sparse.csr_matrix((data, (ridx, cidx)), shape=(N+K, N), dtype=lap.dtype)
     # Compute deltas + augment with anchors
-    deltas = Lap.dot(mesh.vertex)
+    deltas = lap.dot(mesh.vertex)
     for k in range(K):
         deltas[N + k, :] = anchors[k,:] * weight
     # Update each dimension
