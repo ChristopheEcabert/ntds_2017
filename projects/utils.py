@@ -76,7 +76,7 @@ def load_meshes(filename, exps=None):
         nvert *= 3
         npoly = struct.unpack('@i', f.read(4))[0]
         # Select expression
-        idx = range(0, nexp) if exps is None else sorted(list(set(exps)))
+        idx = range(0, nexp + 1) if exps is None else sorted(list(set(exps)))
         # Iterate over selection
         for i in idx:
             # Move to proper section
