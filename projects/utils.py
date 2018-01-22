@@ -3,6 +3,12 @@ import os
 import re
 import shutil
 import numpy as np
+import pandas as pd
+from tqdm import tqdm, tnrange, tqdm_notebook
+import scipy
+import matplotlib.pyplot as plt
+from scipy import sparse, stats, spatial
+import scipy.sparse.linalg
 
 
 def prepare_data(src, dest):
@@ -103,6 +109,7 @@ def save_obj(vertex, tri, filename):
         for t in tri:
             f.write('f %d %d %d\n' % (t[0] + 1, t[1] + 1, t[2] + 1))
 
+
 def load_obj(filename):
     """
     Load mesh from an *.obj file
@@ -167,6 +174,128 @@ def load_anchor_point(filename):
         for line in f:
             idx.append(int(line.strip()))
     return idx
+
+
+def load_set(ratio_train, folder_path):
+    """
+    Load dataset and split it into train set and test set given the ratio given.
+
+    :param ratio_train:    ratio of the dataset dedicated to the training set
+    :param folder_path:    Location of the dataset
+    """
+    filenames = pd.Series(os.listdir(folder_path)).sort_values()
+
+    len_train_set = int(round(ratio_train * len(filenames), 0))
+    len_test_set = len(filenames) - len_train_set
+
+    individuals = []
+
+    for fname in tqdm_notebook(filenames[:len_train_set],
+                               desc='Load train Set'):
+        faces = load_meshes(folder_path + fname)
+        individuals.append(faces)
+
+    individuals_test = []
+
+    for fname in tqdm_notebook(filenames[len_train_set:], desc='Load Test Set'):
+        faces = load_meshes(folder_path + fname)
+        individuals_test.append(faces)
+
+    return (individuals, individuals_test)
+
+
+def construct_features_matrix(individuals, nb_face):
+    """
+    Load dataset and split it into train set and test set given the ratio given.
+
+    :param individuals:    set of all the faces for a given set of individuals (ex: train_set)
+    :param nb_face:   Number of faces per person we wish to analyse
+    """
+
+    expression_label = [j for i in range(0, len(individuals)) for j in
+                        range(1, nb_face)]
+
+    features = []
+
+    if nb_face:
+        for i, ind in enumerate(
+                tqdm_notebook((individuals), desc='Built Features')):
+            for j, face in enumerate(ind[1:nb_face]):
+                if (i == 0 and j == 0):
+                    features = face.reshape(1, -1) - ind[0].reshape(1, -1)
+                else:
+                    err = face.reshape(1, -1) - ind[0].reshape(1, -1)
+                    features = np.vstack((features, err))
+    else:
+        for i, ind in enumerate(
+                tqdm_notebook((individuals), desc='Built Features')):
+            if i == 0:
+                features = ind[0].reshape(1, -1)
+            else:
+                new = ind[0].reshape(1, -1)
+                features = np.vstack((features, new))
+
+    return expression_label, features
+
+
+def compute_laplacian(features, nb_neighbours, distance_metric, nb_eigen,
+                      verbose):
+    """
+    Compute distances between each sample, compute weight matrix from the distances, Laplacian and return eigenvalues/vectors
+
+    :param features:    ndarray, set of all the faces for a given set of individuals (ex: train_set)
+    :param nb_neighbours:   int, Number of neighbours per sample we want to keep in order to sparcify the weight matrix
+    :param distance_metric:   str, method to compute distance between samples (ex : 'Euclidean', 'Cosine')
+    :param nb_eigen:   int, Number of first eigenvalues/vectors we want to compute
+    :param verbose:   int, 1 to display graphs, 0 to display nothing
+    """
+
+    # Compute distances between every samples
+    print('Compute Distances')
+    distances = scipy.spatial.distance.pdist(features, metric=distance_metric)
+    distances = scipy.spatial.distance.squareform(distances)
+
+    if verbose:
+        plt.hist(distances.reshape(-1), bins=50)
+        plt.xlabel('Distance')
+        plt.ylabel('Number')
+        plt.title('Distance distribution')
+        plt.show()
+
+    # Compute weights from distance matrix
+    kernel_width = distances.mean()
+    weights = np.exp((-distances ** 2) / (kernel_width ** 2))
+    np.fill_diagonal(weights, 0)
+
+    # Sparsen weight matrix with nb_neighbours
+    sparse_weights = np.zeros((len(weights), len(weights)), dtype=np.float)
+
+    for i in tqdm_notebook(range(len(sparse_weights)), desc='Sparse Weight'):
+        ord_index = np.argsort(weights[i, :])
+        for j in ord_index[-nb_neighbours:]:
+            sparse_weights[i, j] = weights[i, j]
+
+            if not sparse_weights[j, i]:  # Force symmetry in the matrix
+                sparse_weights[j, i] = weights[i, j]
+
+    # Compute laplacian from the sparse weight matrix
+    print('Compute Laplacian')
+    laplacian = sparse.csgraph.laplacian(sparse_weights, normed=True)
+    laplacian = sparse.csr_matrix(laplacian)
+
+    # Compute eigenvalues/vectors from laplacian
+    print('Compute Eigenvalues/vectors')
+    eigenvalues, eigenvectors = scipy.sparse.linalg.eigsh(laplacian, k=nb_eigen,
+                                                          which='SM')
+
+    if verbose:
+        plt.plot(eigenvalues, '.-', markersize=15);
+        plt.xlabel('Eigenvalues')
+        plt.ylabel('Values')
+        plt.title(str(nb_eigen) + ' first eigenvalues')
+        plt.show()
+
+    return eigenvalues, eigenvectors
 
 
 class MeshGenerator:
