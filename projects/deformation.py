@@ -95,11 +95,12 @@ def deform_mesh(mesh, anchors, idx, weight = 1.0):
     :param anchors: Target points, position to reach [K x 3]
     :param idx:     Index of the corresponding anchors
     :param weights: Anchor's weight
-    :return:        Deformed mesh (inplace)
+    :return:        Deformed surface estimated
     """
     # Define dimensions
     N = mesh.vertex.shape[0]
     K = anchors.shape[0]
+    estm_xt = np.zeros(mesh.vertex.shape, dtype=mesh.vertex.dtype)
 
     # Compute laplacian + augment it with anchor's index
     _, _, lap = mesh.compute_laplacian('cotan')
@@ -117,9 +118,9 @@ def deform_mesh(mesh, anchors, idx, weight = 1.0):
         deltas[N + k, :] = anchors[k,:] * weight
     # Update each dimension
     for k in range(3):
-        mesh.vertex[:, k] = scipy.sparse.linalg.lsqr(lap, deltas[:, k])[0]
+        estm_xt[:, k] = scipy.sparse.linalg.lsqr(lap, deltas[:, k])[0]
     # Done
-    return mesh
+    return estm_xt
 
 """
 # --------------------------------------------------------
